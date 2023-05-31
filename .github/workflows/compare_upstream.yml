@@ -1,0 +1,43 @@
+name: Compare Upstream
+
+on:
+  schedule:
+  - cron: "15 2 * * *" # 2:15am UTC every day
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    outputs:
+      upstream_change: ${{ steps.compare_step.outputs.upstream_change }}
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.11"
+    - name: Upgrade pip and install requests
+      run: python -m pip install --upgrade build requests
+    - name: Get naif_eop_high_prec from PyPI and Extract earth_latest_high_prec.bpc
+      # Download the contents of the PyPI package to the `remote` folder
+      # Extract the file we want to md5 compare and store it in `remote/earth_latest_high_prec.bpc`
+      run: |
+        pip download --no-binary :all: -d remote naif-eop-high-prec
+        tar -zxf remote/* --wildcards --no-anchored '*earth_latest_high_prec.bpc' -O > remote/earth_latest_high_prec.bpc
+    - name: Download the NAIF high precision EOP file
+      # Fetch the new files we care about and stick them in `new`
+      run: |
+        mkdir new
+        python naif_eop_high_prec/fetch.py --file new/earth_latest_high_prec.bpc --md5_file new/earth_latest_high_prec.md5
+    - name: Detect Changes to earth_latest_high_prec.bpc
+      # Compare the md5s of the two files and indicate upstream change in the output
+      id: compare_step
+      run: |
+        python naif_eop_high_prec/compare.py remote/earth_latest_high_prec.bpc new/earth_latest_high_prec.bpc && echo 'upstream_change=false' >> $GITHUB_OUTPUT || echo 'upstream_change=true' >> $GITHUB_OUTPUT
+
+  build-test-publish:
+    needs: compare
+    if: needs.compare.outputs.upstream_change == 'true'
+    uses: B612-Asteroid-Institute/naif_eop_high_prec/.github/workflows/build_test_publish.yml@main
