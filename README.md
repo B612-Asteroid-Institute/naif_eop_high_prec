@@ -17,7 +17,7 @@ Every night at around 2:15 AM UTC, the NAIF high precision Earth orientation par
 
 ## Installation
 
-The latest version of the file can be install via pip:  
+The latest version of the file can be installed via pip:  
 `pip install naif-eop-high-prec`
 
 ## Usage
